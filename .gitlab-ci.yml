@@ -1,0 +1,33 @@
+image: docker:stable
+
+stages:
+  - build
+
+services:
+  - docker:dind
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_HUB_NAME: mediciland/flod
+
+before_script:
+  - apk update && apk add curl zip unzip tar
+  - docker login -u $dockerhub_user -p $dockerhub_pass
+  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+
+Build:
+  stage: build
+  script:
+    - mkdir -p $CI_PROJECT_DIR/bin/
+    - docker build -t flod-build:$CI_COMMIT_REF_SLUG -f ci/Dockerfile.build .
+    - container_id=$(docker create flod-build:$CI_COMMIT_REF_SLUG)
+    - for EXE in addblock findcheckpoint floctl flod gencerts; do docker cp $container_id:/go/$EXE $CI_PROJECT_DIR/bin/$EXE; done
+    - docker rm -v $container_id
+  artifacts:
+    paths:
+      - bin/addblock
+      - bin/findcheckpoint
+      - bin/floctl
+      - bin/flod
+      - bin/gencerts
